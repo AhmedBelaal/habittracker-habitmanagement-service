@@ -18,6 +18,10 @@ services:
       SERVICE_C_URL: ${SERVICE_C_URL:-}
     expose:
       - '3001'
+    networks:
+      default:
+        aliases:
+          - service-a
     healthcheck:
       test: ['CMD', 'node', '-e', "fetch('http://localhost:3001/ready').then(r => { if (!r.ok) process.exitCode = 1 }).catch(() => { process.exitCode = 1 })"]
       interval: 15s

@@ -1,31 +1,14 @@
-# Service C integration with Service A and B
+# Service C integration with Service A
 
-Service C (Time Management) owns the dashboard, calendar, milestones, aggregate admin analytics and Google Calendar reminders. Inside the Docker network, use `http://habits-service:3001` for A and `http://streaks-service:3002` for B. The gateway routes the browser to C at `http://time-service:3003`.
+On the `habittracker` Docker network, use `http://service-c:3003` (or `http://time-service:3003`) for Time Management. Set `SERVICE_C_URL` in Service A and point Service C's `HABITS_SERVICE_URL` at `http://service-a:3001`. Service C accepts public routes with or without the `/api` prefix. [Adam's integration guide](https://github.com/adam246898/adam246898-Backend-TimeManagment-Service/blob/main/docs/INTEGRATION.md)
 
-## Read habit data from A
+Service C uses a 3-second timeout by default. Every user-scoped call is expected to send `X-Internal-Token`, `X-Request-Id`, `X-User-Id`, `X-User-Timezone`, and `X-User-Week-Starts-On`, plus a matching `userId` in the query. Service C's background Google reminder and first-sync jobs omit the week-start header today, so Service A uses Sunday. The stats call sends the internal token and request ID without user context.
 
-Send `X-Internal-Token`, the trusted `X-User-Id` on user-scoped routes, the user's `X-User-Timezone`, and `X-Request-Id`. The header and query user IDs must match. Pass `X-User-Week-Starts-On` when making due requests for a user with a saved preference. Use a three-second timeout on internal calls.
-
-| Call | Use |
+| Service A call | Result |
 |---|---|
-| `GET /internal/habits?userId=&ids=&includeArchived=` | `{data: Habit[]}` with names, categories, schedules and deadlines. `ids` is an optional comma-separated UUID list. `includeArchived` defaults to `false`. |
-| `GET /internal/habits/:id?userId=` | Full Habit for that user, including a challenge's `startDate`, `deadline` and `state`. |
-| `GET /internal/habits/due?userId=&date=` | `{data: Habit[]}` for one of the last seven days or today. For older calendar dates, use habit definitions and check-in history. |
-| `GET /internal/habits/:id/inactive-periods?userId=` | `{data: [{from, until}]}` for skipping paused or archived dates in historical views. `until` is exclusive or `null`. |
-| `GET /internal/stats?range=30d` (or `90d`) | `{range, habitsByCategory: [{category, count}]}` with no user IDs. |
+| `GET /internal/habits?userId=&ids=&includeArchived=` | `{data: Habit[]}`. Optional `ids` are comma-separated UUID v4s. |
+| `GET /internal/habits/due?userId=&date=` | `{data: Habit[]}` for a local date. |
+| `GET /internal/habits/:id/inactive-periods?userId=` | `{data: [{from, until}]}`. `until` is exclusive or `null`. |
+| `GET /internal/stats?range=30d` (or `90d`) | `{range, habitsByCategory: [{category, count}]}`. |
 
-## Read activity from B
-
-The team contract provides `/internal/checkins?userId=&from=&to=`, `/internal/streaks?userId=`, `/internal/challenges?userId=` and `/internal/stats?range=`. Use B's check-ins, streaks and challenge results when computing milestones and progress. Handle a required dependency timeout as `503 SERVICE_UNAVAILABLE` under the team contract.
-
-If B still follows its original README, use `x-service-key` with B's `INTERNAL_API_KEY`. Its compatible read routes are `/internal/users/:userId/streaks?timezone=` and `/internal/users/:userId/check-ins?from=&to=`. The check-in response is `{"checkInsByDate":{"2026-11-20":["habit-uuid"]}}`. Challenge, analytics and public endpoint shapes need to follow whichever B version C is connected to. Confirm the protocol before integrating those views.
-
-## Receive reminder updates from A
-
-Set `SERVICE_C_URL=http://time-service:3003` in A's `.env` and rerun the Floci setup. C should accept `POST /internal/reminders` with contract authentication and `{"userId":"...","habitId":"...","action":"upsert"}` or action `delete`.
-
-- On `upsert`, fetch the habit from A and update the events for that user and habit. `reminderTime` is local `HH:mm` and the request includes `X-User-Timezone`. A challenge also has an all-day deadline event. Treat an already deleted habit as cleanup if an upsert reaches C after the deletion.
-- On `delete`, remove matching events by user and habit ID. The habit may already be deleted or hidden in A. A sends this on deletion, pause, archive, or reminder removal when no deadline event remains.
-- Return `202` even when the user has not connected Google Calendar. Use the same event identity on retries to avoid duplicates. A keeps habit writes successful while reminder delivery is pending.
-
-C owns the Google OAuth flow and credentials. Keep its `/internal/*` routes off the gateway's public route table.
+Service A sends `POST /internal/reminders` with `{userId, habitId, action}`. Service C immediately returns `202` for each valid, authenticated request and processes the work asynchronously. An `upsert` for a deleted habit is treated as cleanup. A `delete` can safely be repeated.
