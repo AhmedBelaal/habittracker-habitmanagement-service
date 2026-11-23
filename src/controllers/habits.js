@@ -18,11 +18,11 @@ function createHabitController(service, auth) {
       res.json(await service.internalList(auth.forUser(req, req.input.userId), req.input));
     },
     async internalDue(req, res) {
-      res.json(await service.due(auth.forUser(req, req.input.userId), req.input.date));
+      res.json(await service.due(auth.forUser(req, req.input.userId), req.input.date, { internal: true }));
     },
     async internalGet(req, res) {
       if (req.context.legacy) return res.json(await service.legacyGet(req.habitId));
-      return res.json(await service.get(auth.forUser(req, req.input.userId), req.habitId));
+      return res.json(await service.get(auth.forUser(req, req.input.userId), req.habitId, { internal: true }));
     },
     async inactivePeriods(req, res) {
       res.json(await service.inactivePeriods(auth.forUser(req, req.input.userId), req.habitId));

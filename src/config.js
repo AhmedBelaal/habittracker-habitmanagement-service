@@ -29,7 +29,7 @@ async function loadConfig(env = process.env) {
     }
   }
   const streaksUrl = serviceUrl(env, 'SERVICE_B_URL');
-  const streaksProtocol = env.SERVICE_B_API || 'legacy';
+  const streaksProtocol = env.SERVICE_B_API || 'contract';
   if (!['legacy', 'contract'].includes(streaksProtocol)) throw new Error('Set SERVICE_B_API to legacy or contract.');
   const port = Number(env.PORT || 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Set PORT to a valid TCP port.');

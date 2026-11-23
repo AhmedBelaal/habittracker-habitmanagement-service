@@ -13,7 +13,7 @@ services:
       AWS_ENDPOINT_URL: http://floci:4566
       SERVICE_SECRET_ID: habittracker/habits-service
       CLOUDWATCH_LOG_GROUP: /habits-service
-      SERVICE_B_API: ${SERVICE_B_API:-legacy}
+      SERVICE_B_API: ${SERVICE_B_API:-contract}
       SERVICE_B_URL: ${SERVICE_B_URL:-}
       SERVICE_C_URL: ${SERVICE_C_URL:-}
     expose:

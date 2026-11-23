@@ -1,4 +1,4 @@
-const { weekdayIndex, weekdays } = require('./dates');
+const { addDays, weekdayIndex, weekdays } = require('./dates');
 
 const categories = ['health', 'fitness', 'study', 'mindfulness', 'productivity', 'finance', 'social', 'other'];
 
@@ -25,6 +25,19 @@ function publicHabit(habit, today) {
   };
 }
 
+// Internal routes only: the public Habit plus what other services need for history.
+// startDate: the habit's first local day. pausedPeriods: paused/archived spans with an INCLUSIVE "to"
+// (null while still inactive), as streaks-service reads them. Internally "until" is exclusive.
+function internalHabit(habit, today) {
+  return {
+    ...publicHabit(habit, today),
+    startDate: habit.startDate,
+    pausedPeriods: habit.inactivePeriods
+      .map(({ from, until }) => ({ from, to: until ? addDays(until, -1) : null }))
+      .filter(({ from, to }) => to === null || to >= from),
+  };
+}
+
 function legacyHabit(habit) {
   const { type, schedule } = habit;
   const habitType = type === 'challenge' ? 'challenge' : schedule.type === 'weekdays' ? 'weekly' : 'daily';
@@ -45,4 +58,4 @@ function dueOn(habit, date) {
   return habit.schedule.type !== 'weekdays' || habit.schedule.days.includes(weekdays[weekdayIndex(date)]);
 }
 
-module.exports = { categories, challengeState, currentStatus, publicHabit, legacyHabit, dueOn };
+module.exports = { categories, challengeState, currentStatus, publicHabit, internalHabit, legacyHabit, dueOn };

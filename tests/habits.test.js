@@ -1,11 +1,12 @@
 const { randomUUID } = require('node:crypto');
 const request = require('supertest');
 const { createApp } = require('../src/app');
+const { loadConfig } = require('../src/config');
 const { createIntegrations } = require('../src/integrations/services');
 const { createHabitService } = require('../src/services/habits');
 const repository = require('../src/repositories/habits');
 const { todayIn, weekStart } = require('../src/domain/dates');
-const { dueOn } = require('../src/domain/habits');
+const { dueOn, internalHabit } = require('../src/domain/habits');
 
 const userId = randomUUID();
 const habitId = randomUUID();
@@ -34,6 +35,60 @@ test('uses calendar days in Cairo and keeps the deadline inclusive', () => {
   expect(dueOn(habit, '2026-11-23')).toBe(false);
   expect(dueOn(habit, '2026-11-25')).toBe(true);
   expect(dueOn(habit, '2026-11-30')).toBe(false);
+});
+
+test('converts exclusive ends to inclusive paused periods and drops same-day pauses', () => {
+  const habit = {
+    ...weekHabit,
+    inactivePeriods: [
+      { from: '2026-11-21', until: '2026-11-23' },
+      { from: '2026-11-23', until: '2026-11-23' },
+      { from: '2026-11-24', until: null },
+    ],
+  };
+  expect(internalHabit(habit, '2026-11-24')).toMatchObject({
+    startDate: '2026-11-21',
+    pausedPeriods: [{ from: '2026-11-21', to: '2026-11-22' }, { from: '2026-11-24', to: null }],
+  });
+});
+
+test('adds history to internal habit reads and keeps the public read and due shapes unchanged', async () => {
+  const habit = {
+    ...weekHabit,
+    schedule: { type: 'daily' },
+    inactivePeriods: [{ from: '2026-11-22', until: '2026-11-23' }],
+  };
+  jest.spyOn(repository, 'find').mockResolvedValue(habit);
+  jest.spyOn(repository, 'listForService').mockResolvedValue([habit]);
+  const pool = {};
+  const habits = createHabitService(pool, {}, () => new Date('2026-11-24T12:00:00Z'));
+  const app = createApp({ pool, config, habits, templates: {}, log: () => {} });
+  const publicRead = await request(app).get(`/api/habits/${habitId}`).set(headers).expect(200);
+  expect(publicRead.body).not.toHaveProperty('startDate');
+  expect(publicRead.body).not.toHaveProperty('pausedPeriods');
+  await request(app).get('/api/habits/due').set(headers).expect(200, { data: [publicRead.body] });
+
+  const internal = { ...publicRead.body, startDate: '2026-11-21', pausedPeriods: [{ from: '2026-11-22', to: '2026-11-22' }] };
+  await request(app).get(`/internal/habits?userId=${userId}`).set(headers).expect(200, { data: [internal] });
+  await request(app).get(`/internal/habits/due?userId=${userId}`).set(headers).expect(200, { data: [internal] });
+  await request(app).get(`/internal/habits/${habitId}?userId=${userId}`).set(headers).expect(200, internal);
+  await request(app).get(`/internal/habits/${habitId}/inactive-periods?userId=${userId}`).set(headers)
+    .expect(200, { data: habit.inactivePeriods });
+});
+
+test('returns the active challenge total alongside category counts in internal stats', async () => {
+  const categories = [{ category: 'study', count: 4 }];
+  const pool = { query: jest.fn().mockResolvedValueOnce({ rows: categories }).mockResolvedValueOnce({ rows: [{ count: 2 }] }) };
+  const app = createApp({ pool, config, habits: createHabitService(pool, {}), templates: {}, log: () => {} });
+  await request(app).get('/internal/stats?range=30d').set('x-internal-token', config.internalToken)
+    .expect(200, { range: '30d', habitsByCategory: categories, challenges: { active: 2 } });
+});
+
+test('defaults to the Service B contract and accepts legacy as an explicit override', async () => {
+  const env = { INTERNAL_TOKEN: 'gateway-fixture', DATABASE_URL: 'postgresql://localhost/test', SERVICE_B_URL: 'http://service-b:3002' };
+  await expect(loadConfig(env)).resolves.toMatchObject({ streaksProtocol: 'contract', streaksKey: undefined });
+  await expect(loadConfig({ ...env, SERVICE_B_API: 'legacy', SERVICE_B_KEY: 'legacy-fixture' }))
+    .resolves.toMatchObject({ streaksProtocol: 'legacy', streaksKey: 'legacy-fixture' });
 });
 
 test('uses previous check-in days for weekly targets so a completed habit stays on that day’s checklist', async () => {

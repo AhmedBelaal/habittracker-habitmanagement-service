@@ -3,7 +3,7 @@ const habits = require('../repositories/habits');
 const templates = require('../repositories/templates');
 const outbox = require('../repositories/outbox');
 const { addDays, todayIn, weekStart } = require('../domain/dates');
-const { challengeState, currentStatus, publicHabit, legacyHabit, dueOn } = require('../domain/habits');
+const { challengeState, currentStatus, publicHabit, internalHabit, legacyHabit, dueOn } = require('../domain/habits');
 const { AppError, invalid, notFound } = require('../middleware/errors');
 
 const invalidState = () => new AppError(409, 'INVALID_STATE', 'This action is unavailable for the current habit status.');
@@ -115,7 +115,7 @@ function createHabitService(pool, integrations, now = () => new Date()) {
     });
   }
 
-  async function due(context, date = today(context)) {
+  async function due(context, date = today(context), { internal = false } = {}) {
     const localDate = today(context);
     if (date > localDate || date < addDays(localDate, -7)) throw invalid('date', 'Choose today or one of the previous seven days.');
     let candidates = (await habits.listForService(pool, context.userId)).filter(habit => dueOn(habit, date));
@@ -134,7 +134,8 @@ function createHabitService(pool, integrations, now = () => new Date()) {
         return eligibleDates.length < habit.schedule.count;
       });
     }
-    return { data: candidates.map(habit => publicHabit(habit, localDate)) };
+    const serialize = internal ? internalHabit : publicHabit;
+    return { data: candidates.map(habit => serialize(habit, localDate)) };
   }
 
   return {
@@ -158,8 +159,9 @@ function createHabitService(pool, integrations, now = () => new Date()) {
       const results = await habits.list(pool, context.userId, localDate, query);
       return { ...results, data: results.data.map(habit => publicHabit(habit, localDate)) };
     },
-    async get(context, id) {
-      return publicHabit(await find(pool, context.userId, id), today(context));
+    async get(context, id, { internal = false } = {}) {
+      const serialize = internal ? internalHabit : publicHabit;
+      return serialize(await find(pool, context.userId, id), today(context));
     },
     edit, transition, due,
     async remove(context, id) {
@@ -175,7 +177,7 @@ function createHabitService(pool, integrations, now = () => new Date()) {
     async internalList(context, query) {
       const localDate = today(context);
       const rows = await habits.listForService(pool, context.userId, query);
-      return { data: rows.map(habit => publicHabit(habit, localDate)) };
+      return { data: rows.map(habit => internalHabit(habit, localDate)) };
     },
     async legacyGet(id) {
       const habit = await habits.findForLegacyService(pool, id);
@@ -191,7 +193,11 @@ function createHabitService(pool, integrations, now = () => new Date()) {
       return { data: habit.inactivePeriods };
     },
     async stats(range) {
-      return { range, habitsByCategory: await habits.stats(pool, Number.parseInt(range, 10)) };
+      return {
+        range,
+        habitsByCategory: await habits.stats(pool, Number.parseInt(range, 10)),
+        challenges: { active: await habits.activeChallenges(pool) },
+      };
     },
     async resumeExpired() {
       return habits.transaction(pool, async db => {

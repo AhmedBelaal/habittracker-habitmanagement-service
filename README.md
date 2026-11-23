@@ -47,11 +47,11 @@ IDs are UUID v4. Ownership comes from the trusted header and is enforced in Post
 
 ## Connect the team services
 
-Join the existing `habittracker` Docker network from the gateway, B, and C with the DNS names defined in the contract. Leave the service URLs unset to run A on its own. In `.env`, set `SERVICE_B_URL`, `SERVICE_C_URL`, and the credentials in the relevant integration guide before rerunning `infra/setup-aws.sh`.
+Join the existing `habittracker` Docker network from the gateway, B, and C with the DNS names defined in the contract. Leave the service URLs unset to run A on its own. In `.env`, set `SERVICE_B_URL`, `SERVICE_C_URL`, and the credentials in the relevant integration guide before rerunning `infra/setup-aws.sh`. Service B uses `SERVICE_B_API=contract` by default. Set `SERVICE_B_API=legacy` for versions that use the old cache protocol.
 
 - [Service B · Streaks integration](docs/service-b/README.md)
 - [Service C · Time Management integration](docs/service-c/README.md)
 
 Habit writes and integration jobs commit together. The worker retries network errors, timeouts, rate limits and upstream server errors. It logs other rejected deliveries with their request ID and waits for a new habit change before resending. A delete can be delivered more than once if a response is lost, so receivers must make deletes and reminder updates idempotent.
 
-The canonical internal habit lists use `{data: Habit[]}`. A's stats endpoint returns current stored habits created in the requested UTC window (`30d` or `90d`) grouped by category. For team deployment, the gateway owns Cognito and public routing, B owns scheduled streak calculation, and C owns Google OAuth.
+The contract's internal habit lists use `{data: Habit[]}` with `startDate` and `pausedPeriods` on each habit. A's internal stats endpoint counts stored habits by category for the requested UTC window (`30d` or `90d`) and reports the platform-wide count of challenges active today in their own time zones. For team deployment, the gateway owns Cognito and public routing, B owns scheduled streak calculation, and C owns Google OAuth.

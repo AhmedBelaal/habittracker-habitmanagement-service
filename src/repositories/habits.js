@@ -95,6 +95,14 @@ async function stats(db, days) {
   return rows;
 }
 
+// Platform total for admin analytics: challenges running today in each habit's own time zone.
+async function activeChallenges(db) {
+  const { rows } = await db.query(`SELECT count(*)::integer AS count FROM ${table}
+    WHERE type = 'challenge' AND status <> 'archived'
+      AND start_date <= timezone(timezone, now())::date AND deadline >= timezone(timezone, now())::date`);
+  return rows[0].count;
+}
+
 async function expiredPauses(db) {
   const { rows } = await db.query(`SELECT ${fields} FROM ${table} h WHERE h.status = 'paused'
     AND h.paused_until <= timezone(h.timezone, now())::date ORDER BY h.paused_until, h.id
@@ -103,5 +111,6 @@ async function expiredPauses(db) {
 }
 
 module.exports = {
-  transaction, find, findForLegacyService, insert, save, remove, list, listForService, tagCounts, stats, expiredPauses, paginated,
+  transaction, find, findForLegacyService, insert, save, remove, list, listForService, tagCounts, stats, activeChallenges,
+  expiredPauses, paginated,
 };

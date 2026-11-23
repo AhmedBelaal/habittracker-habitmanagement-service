@@ -6,9 +6,9 @@ Service C uses a 3-second timeout by default. Every user-scoped call is expected
 
 | Service A call | Result |
 |---|---|
-| `GET /internal/habits?userId=&ids=&includeArchived=` | `{data: Habit[]}`. Optional `ids` are comma-separated UUID v4s. |
-| `GET /internal/habits/due?userId=&date=` | `{data: Habit[]}` for a local date. |
+| `GET /internal/habits?userId=&ids=&includeArchived=` | `{data: Habit[]}` with `startDate` and `pausedPeriods` on each habit. Optional `ids` are comma-separated UUID v4s. |
+| `GET /internal/habits/due?userId=&date=` | `{data: Habit[]}` for a local date, with `startDate` and `pausedPeriods` on each habit. |
 | `GET /internal/habits/:id/inactive-periods?userId=` | `{data: [{from, until}]}`. `until` is exclusive or `null`. |
-| `GET /internal/stats?range=30d` (or `90d`) | `{range, habitsByCategory: [{category, count}]}`. |
+| `GET /internal/stats?range=30d` (or `90d`) | `{range, habitsByCategory: [{category, count}], challenges: {active}}`. `active` is the number of challenges running today in their own time zones. |
 
 Service A sends `POST /internal/reminders` with `{userId, habitId, action}`. Service C immediately returns `202` for each valid, authenticated request and processes the work asynchronously. An `upsert` for a deleted habit is treated as cleanup. A `delete` can safely be repeated.
