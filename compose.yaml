@@ -1,0 +1,47 @@
+name: habittracker-service-a
+
+services:
+  habits-service:
+    build: .
+    depends_on:
+      - floci
+    environment:
+      PORT: 3001
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT_URL: http://floci:4566
+      SERVICE_SECRET_ID: habittracker/habits-service
+      CLOUDWATCH_LOG_GROUP: /habits-service
+      SERVICE_B_API: ${SERVICE_B_API:-legacy}
+      SERVICE_B_URL: ${SERVICE_B_URL:-}
+      SERVICE_C_URL: ${SERVICE_C_URL:-}
+    expose:
+      - '3001'
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:3001/ready').then(r => { if (!r.ok) process.exitCode = 1 }).catch(() => { process.exitCode = 1 })"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  floci:
+    image: ${FLOCI_IMAGE:-floci/floci@sha256:a0fbf944d7f338cc0856f1ef83831ea749ff2be71956eb7a7fce08fc21458e19}
+    ports:
+      - '127.0.0.1:4566:4566'
+    environment:
+      FLOCI_HOSTNAME: floci
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      FLOCI_SERVICES_DOCKER_NETWORK: habittracker
+      FLOCI_SERVICES_RDS_ENDPOINT_HOST: floci
+      FLOCI_SERVICES_RDS_PROXY_BASE_PORT: '7001'
+    volumes:
+      - floci-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+networks:
+  default:
+    name: habittracker
+
+volumes:
+  floci-data:

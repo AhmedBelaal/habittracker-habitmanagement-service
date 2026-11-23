@@ -1,0 +1,26 @@
+{
+  "name": "habittracker-habitmanagement-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Habit Tracker Service A: habits, schedules, categories, tags and templates",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
+    "migrate": "node --env-file-if-exists=.env scripts/migrate.js",
+    "test": "jest --runInBand",
+    "smoke": "node --env-file-if-exists=.env scripts/smoke.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "express": "^5.0.0",
+    "helmet": "^8.0.0",
+    "pg": "^8.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "jest": "^30.0.0",
+    "supertest": "^7.0.0"
+  }
+}
