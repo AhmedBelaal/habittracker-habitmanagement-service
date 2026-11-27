@@ -68,6 +68,19 @@ if [[ $(MSYS_NO_PATHCONV=1 awsl logs describe-log-groups --log-group-name-prefix
 fi
 MSYS_NO_PATHCONV=1 awsl logs put-retention-policy --log-group-name "$group" --retention-in-days 7
 
+echo 'Setting up the Service A HTTP 5xx alarm...'
+metric_namespace=HabitTracker/ServiceA
+metric_name=ServiceA5xx
+MSYS_NO_PATHCONV=1 awsl logs put-metric-filter --log-group-name "$group" \
+  --filter-name habits-service-5xx \
+  --filter-pattern '{ $.event = "http_request" && $.status >= 500 && $.status < 600 }' \
+  --metric-transformations "metricName=$metric_name,metricNamespace=$metric_namespace,metricValue=1,unit=Count"
+awsl cloudwatch put-metric-alarm --alarm-name habits-service-5xx \
+  --alarm-description 'Service A returned at least five HTTP 5xx responses in a five-minute period.' \
+  --namespace "$metric_namespace" --metric-name "$metric_name" --statistic Sum --period 300 \
+  --evaluation-periods 1 --threshold 5 --comparison-operator GreaterThanOrEqualToThreshold \
+  --treat-missing-data notBreaching
+
 echo 'Recording the scoped EC2 runtime role in Floci IAM...'
 role=habittracker-habits-runtime
 if ! require_resource NoSuchEntity iam get-role --role-name "$role"; then

@@ -20,10 +20,13 @@ The setup uses AWS CLI against Floci at `127.0.0.1:4566`. It provisions an emula
 ```bash
 docker compose ps
 MSYS_NO_PATHCONV=1 aws --endpoint-url http://127.0.0.1:4566 --region us-east-1 logs tail /habits-service --since 10m
+aws --endpoint-url http://127.0.0.1:4566 --region us-east-1 cloudwatch describe-alarms --alarm-names habits-service-5xx
 docker compose down
 ```
 
-For that AWS CLI log command, use the lab's Floci profile (`--profile floci`) or set the dummy `AWS_ACCESS_KEY_ID=test` and `AWS_SECRET_ACCESS_KEY=test` first. The setup script supplies dummy credentials itself. Generated local configuration lives in the ignored `.local/` directory. Keep it with the local database because it contains the passwords used on first setup.
+The `habits-service-5xx` alarm counts HTTP `5xx` request logs in `/habits-service` and enters `ALARM` at five or more errors in a five-minute evaluation period. Check its state with `describe-alarms`.
+
+For the AWS CLI commands, use the lab's Floci profile (`--profile floci`) or set the dummy `AWS_ACCESS_KEY_ID=test` and `AWS_SECRET_ACCESS_KEY=test` first. The setup script supplies dummy credentials itself. Generated local configuration lives in the ignored `.local/` directory. Keep it with the local database because it contains the passwords used on first setup.
 
 For development with an existing PostgreSQL database, copy `.env.example` to `.env`, set the database URLs and `INTERNAL_TOKEN`, and run `npm run migrate` followed by `npm run dev`. Use a migration role for `DATABASE_URL_DIRECT` and grant the runtime role access to the `habits` schema and its tables. For team-managed AWS, the service also supports an AWS-provided role and `SERVICE_SECRET_ID`. Configure the database connection with your RDS CA and TLS settings, and grant the role `secretsmanager:GetSecretValue` on the service secret, `kms:Decrypt` on its key, and `logs:CreateLogStream` and `logs:PutLogEvents` for `/habits-service`.
 
